@@ -1,0 +1,310 @@
+﻿<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>تطبيق تلميذ مدرسة الدعم</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet">
+    <!-- مكتبة قراءة الـ QR عبر الكاميرا -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
+    <style>
+        body { font-family: 'Cairo', sans-serif; background-color: #0b0f19; color: #f3f4f6; }
+        .glass-card { background: rgba(17, 24, 39, 0.85); backdrop-filter: blur(20px); border: 1px solid rgba(255, 255, 255, 0.08); }
+        .glass-input { background: rgba(31, 41, 55, 0.65); border: 1px solid rgba(255, 255, 255, 0.12); color: #fff; }
+        .glass-input:focus { border-color: #3b82f6; outline: none; box-shadow: 0 0 15px rgba(59, 130, 246, 0.3); }
+        .menu-item { transition: all 0.2s ease; cursor: pointer; }
+        .menu-item:hover, .menu-item.active { background: rgba(59, 130, 246, 0.15); border-color: rgba(59, 130, 246, 0.4); color: #60a5fa; }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between p-3 md:p-6">
+
+    <!-- شاشة تسجيل الدخول عبر مسح الـ QR أو إدخال الكود -->
+    <div id="loginScreen" class="fixed inset-0 bg-[#0b0f19] z-50 flex items-center justify-center p-4 overflow-y-auto">
+        <div class="glass-card p-6 md:p-8 rounded-3xl max-w-md w-full text-center space-y-6 shadow-2xl border border-blue-500/20">
+            <div class="w-16 h-16 mx-auto rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center text-3xl shadow-lg text-white">
+                <i class="fa-solid fa-qrcode"></i>
+            </div>
+            <div>
+                <h2 class="text-2xl font-black text-white">مرحباً بك يا تلميذ</h2>
+                <p class="text-xs text-slate-400 mt-1">امسح رمز الـ QR الخاص بك بالكاميرا للدخول لحسابك</p>
+            </div>
+
+            <!-- تشغيل الكاميرا لمسح الـ QR -->
+            <div id="reader" class="rounded-2xl overflow-hidden border border-slate-700 bg-slate-900 p-2"></div>
+
+            <div class="relative flex py-2 items-center">
+                <div class="flex-grow border-t border-slate-700"></div>
+                <span class="flex-shrink mx-4 text-xs text-slate-500">أو أدخل الكود يدوياً</span>
+                <div class="flex-grow border-t border-slate-700"></div>
+            </div>
+
+            <div class="flex gap-2">
+                <input type="text" id="manualCode" placeholder="مثال: ST-4829" class="glass-input flex-1 p-3.5 rounded-2xl text-center text-sm font-mono uppercase">
+                <button onclick="loginWithCode()" class="px-6 py-3.5 rounded-2xl bg-blue-600 hover:bg-blue-500 font-bold text-sm text-white shadow-lg transition">
+                    دخول
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- واجهة التطبيق الرئيسية (تظهر بعد الدخول الناجح) -->
+    <div id="studentApp" class="max-w-4xl mx-auto w-full space-y-6 hidden flex-1 flex flex-col justify-between">
+        
+        <!-- هيدر التطبيق -->
+        <header class="glass-card p-4 rounded-2xl flex justify-between items-center shadow-xl">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-blue-600/20 text-blue-400 flex items-center justify-center font-bold">🎓</div>
+                <div>
+                    <h3 id="appNameDisplay" class="text-sm font-black text-white">اسم التلميذ</h3>
+                    <p id="appInfoDisplay" class="text-[11px] text-slate-400">الفوج والقسم</p>
+                </div>
+            </div>
+            <button onclick="logout()" class="px-3 py-1.5 rounded-xl bg-rose-500/10 text-rose-400 border border-rose-500/20 text-xs font-bold hover:bg-rose-500/20">
+                <i class="fa-solid fa-right-from-bracket ml-1"></i> خروج
+            </button>
+        </header>
+
+        <!-- المحتوى المتغير حسب الخيار المختار في القائمة -->
+        <main class="space-y-4 flex-1">
+            
+            <!-- تبويب الرئيسية -->
+            <div id="tab-home" class="space-y-4">
+                <!-- تنبيه ذكي بحالة الدفع -->
+                <div id="paymentAlertBox" class="p-4 rounded-2xl border"></div>
+
+                <div class="glass-card p-6 rounded-3xl space-y-4 text-center">
+                    <div class="w-24 h-24 mx-auto bg-white p-3 rounded-2xl shadow-inner" id="myQRCodeBox"></div>
+                    <p class="text-xs text-slate-400">إظهار هذا الرمز للإدارة عند الدخول أو الحضور</p>
+                    <div class="pt-4 border-t border-slate-800 grid grid-cols-2 gap-4 text-right text-xs">
+                        <div class="p-3 rounded-xl bg-slate-800/40">
+                            <span class="text-slate-400 block">الكود الخاص:</span>
+                            <strong id="myCodeText" class="text-blue-400 font-mono text-sm"></strong>
+                        </div>
+                        <div class="p-3 rounded-xl bg-slate-800/40">
+                            <span class="text-slate-400 block">الفوج الدراسي:</span>
+                            <strong id="myGroupText" class="text-emerald-400"></strong>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- تبويب الإعلانات -->
+            <div id="tab-announcements" class="glass-card p-6 rounded-3xl space-y-4 hidden">
+                <h3 class="text-base font-bold text-amber-400 flex items-center gap-2">
+                    <i class="fa-solid fa-bullhorn"></i> إعلانات وتنبيهات الإدارة
+                </h3>
+                <div id="studentAnnouncementsList" class="space-y-3"></div>
+            </div>
+
+            <!-- تبويب الغيابات -->
+            <div id="tab-absences" class="glass-card p-6 rounded-3xl space-y-4 hidden">
+                <h3 class="text-base font-bold text-rose-400 flex items-center gap-2">
+                    <i class="fa-solid fa-calendar-xmark"></i> سجل الغيابات المسجلة عليك
+                </h3>
+                <div id="studentAbsencesList" class="space-y-3"></div>
+            </div>
+
+        </main>
+
+        <!-- القائمة السفلية أو الجانبية المنسدلة المريحة للهاتف -->
+        <nav class="glass-card p-2 rounded-2xl grid grid-cols-3 gap-2 text-center shadow-2xl">
+            <div onclick="switchTab('home')" id="nav-home" class="menu-item active p-3 rounded-xl flex flex-col items-center gap-1 text-xs font-bold border border-transparent">
+                <i class="fa-solid fa-house text-base"></i>
+                <span>الرئيسية</span>
+            </div>
+            <div onclick="switchTab('announcements')" id="nav-announcements" class="menu-item p-3 rounded-xl flex flex-col items-center gap-1 text-xs font-bold border border-transparent">
+                <i class="fa-solid fa-bullhorn text-base"></i>
+                <span>الإعلانات</span>
+            </div>
+            <div onclick="switchTab('absences')" id="nav-absences" class="menu-item p-3 rounded-xl flex flex-col items-center gap-1 text-xs font-bold border border-transparent">
+                <i class="fa-solid fa-clipboard-user text-base"></i>
+                <span>غياباتى</span>
+            </div>
+        </nav>
+
+    </div>
+
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
+    <script>
+        // ==========================================
+        // إعدادات Firebase (نفس إعدادات لوحة الإدارة)
+        // ==========================================
+        const firebaseConfig = {
+            apiKey: "YOUR_API_KEY",
+            authDomain: "YOUR_AUTH_DOMAIN",
+            projectId: "YOUR_PROJECT_ID",
+            storageBucket: "YOUR_STORAGE_BUCKET",
+            messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+            appId: "YOUR_APP_ID"
+        };
+
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+
+        let currentStudent = null;
+
+        // تشغيل كاميرا مسح الـ QR تلقائياً عند فتح التطبيق
+        const html5QrCode = new Html5Qrcode("reader");
+        html5QrCode.start(
+            { facingMode: "environment" },
+            { fps: 10, qrbox: { width: 220, height: 220 } },
+            (decodedText) => {
+                html5QrCode.stop().then(() => loginStudent(decodedText.trim().toUpperCase()));
+            },
+            (errorMessage) => {}
+        ).catch(err => {
+            console.log("الكاميرا غير متاحة، يجوز إدخال الكود يدوياً.");
+        });
+
+        function loginWithCode() {
+            const code = document.getElementById('manualCode').value.trim().toUpperCase();
+            if (!code) { alert("أدخل كود التلميذ!"); return; }
+            try { html5QrCode.stop(); } catch(e) {}
+            loginStudent(code);
+        }
+
+        function loginStudent(code) {
+            db.collection('students').doc(code).get().then(doc => {
+                if (!doc.exists) {
+                    alert("الكود غير موجود في قاعدة البيانات!");
+                    location.reload();
+                    return;
+                }
+                currentStudent = { id: doc.id, ...doc.data() };
+                localStorage.setItem('studentCode', currentStudent.studentCode);
+                initStudentDashboard();
+            });
+        }
+
+        // التحقق التلقائي إذا كان مسجلاً مسبقاً في الجهاز
+        window.onload = function() {
+            const savedCode = localStorage.getItem('studentCode');
+            if (savedCode) {
+                db.collection('students').doc(savedCode).get().then(doc => {
+                    if (doc.exists) {
+                        currentStudent = { id: doc.id, ...doc.data() };
+                        initStudentDashboard();
+                    }
+                });
+            }
+        };
+
+        function logout() {
+            localStorage.removeItem('studentCode');
+            location.reload();
+        }
+
+        function initStudentDashboard() {
+            document.getElementById('loginScreen').classList.add('hidden');
+            document.getElementById('studentApp').classList.remove('hidden');
+
+            document.getElementById('appNameDisplay').innerText = currentStudent.fullName;
+            document.getElementById('appInfoDisplay').innerText = `${currentStudent.level} ${currentStudent.branch !== 'عام' ? '- ' + currentStudent.branch : ''} | ${currentStudent.year} (${currentStudent.group})`;
+            document.getElementById('myCodeText').innerText = currentStudent.studentCode;
+            document.getElementById('myGroupText').innerText = currentStudent.group;
+
+            // توليد الـ QR الخاص بالتلميذ في واجهته
+            const qrBox = document.getElementById('myQRCodeBox');
+            qrBox.innerHTML = '';
+            new QRCode(qrBox, { text: currentStudent.studentCode, width: 130, height: 130 });
+
+            // التحقق من حالة الدفع لشهر الحالي وعرض التنبيه الذكي
+            checkPaymentStatusAndAlert();
+            loadStudentAnnouncements();
+            loadStudentAbsences();
+        }
+
+        function checkPaymentStatusAndAlert() {
+            const monthsAr = ["جانفي", "فيفري", "مارس", "أفريل", "ماي", "جوان", "جويلية", "أوت", "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر"];
+            const now = new Date();
+            const currentMonthKey = `${monthsAr[now.getMonth()]} ${now.getFullYear()}`;
+
+            const paidList = Array.isArray(currentStudent.paidMonths) ? currentStudent.paidMonths : [];
+            const isPaid = paidList.includes(currentMonthKey) || currentStudent.lastPaidMonth === currentMonthKey;
+
+            const alertBox = document.getElementById('paymentAlertBox');
+            if (isPaid) {
+                alertBox.className = "p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs flex items-center gap-3";
+                alertBox.innerHTML = `<i class="fa-solid fa-circle-check text-xl text-emerald-400"></i><div><strong>اشتراك شهر ${currentMonthKey} مدفوع</strong><p class="text-slate-300">أنت مخلص لهذا الشهر، شكراً لك.</p></div>`;
+            } else {
+                alertBox.className = "p-4 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-center gap-3 animate-pulse";
+                alertBox.innerHTML = `<i class="fa-solid fa-triangle-exclamation text-xl text-rose-400"></i><div><strong>تنبيه الإدارة: اشتراك شهر ${currentMonthKey} لم يُسدد بعد</strong><p class="text-slate-300">يرجى التقرب للخزينة لتسديد الاشتراك وتفادي توقف الخدمة.</p></div>`;
+            }
+        }
+
+        function switchTab(tabName) {
+            ['home', 'announcements', 'absences'].forEach(t => {
+                document.getElementById(`tab-${t}`).classList.add('hidden');
+                document.getElementById(`nav-${t}`).classList.remove('active');
+            });
+            document.getElementById(`tab-${tabName}`).classList.remove('hidden');
+            document.getElementById(`nav-${tabName}`).classList.add('active');
+        }
+
+        // جلب الإعلانات الموجهة له حصرياً (حسب فؤجه وسنته أو إعلانات الجميع)
+        function loadStudentAnnouncements() {
+            db.collection('announcements').orderBy('timestamp', 'desc').onSnapshot(snap => {
+                const listEl = document.getElementById('studentAnnouncementsList');
+                listEl.innerHTML = '';
+                let count = 0;
+
+                snap.forEach(doc => {
+                    const a = doc.data();
+                    // فلترة ذكية: هل الإعلان موجه للجميع أو لنفس سنته وفوجه؟
+                    const isForEveryone = a.targetLevel === 'الجميع';
+                    const isMyLevel = a.targetLevel === currentStudent.level && (a.targetYear === 'الكل' || a.targetYear === currentStudent.year) && (a.targetGroup === 'الكل' || a.targetGroup === currentStudent.group);
+
+                    if (isForEveryone || isMyLevel) {
+                        count++;
+                        const imgTag = a.imageUrl ? `<img src="${a.imageUrl}" class="mt-3 rounded-xl max-h-48 w-full object-cover">` : '';
+                        listEl.insertAdjacentHTML('beforeend', `
+                            <div class="p-4 rounded-2xl bg-slate-800/60 border border-slate-700/50 space-y-2">
+                                <div class="flex justify-between items-center text-xs">
+                                    <strong class="text-amber-300 text-sm">${a.title}</strong>
+                                    <span class="text-slate-400">${a.date || ''}</span>
+                                </div>
+                                <p class="text-slate-200 text-xs leading-relaxed">${a.body || ''}</p>
+                                ${imgTag}
+                            </div>
+                        `);
+                    }
+                });
+
+                if (count === 0) {
+                    listEl.innerHTML = `<p class="text-center text-slate-400 text-xs py-6">لا توجد إعلانات جديدة حالياً.</p>`;
+                }
+            });
+        }
+
+        // جلب غيابات التلميذ الشخصية
+        function loadStudentAbsences() {
+            db.collection('absences').where('studentCode', '==', currentStudent.studentCode).onSnapshot(snap => {
+                const listEl = document.getElementById('studentAbsencesList');
+                listEl.innerHTML = '';
+                if (snap.empty) {
+                    listEl.innerHTML = `<p class="text-center text-emerald-400 text-xs py-6"><i class="fa-solid fa-check-circle ml-1"></i> ممتاز! ليس لديك أي غيابات مسجلة.</p>`;
+                    return;
+                }
+
+                snap.forEach(doc => {
+                    const ab = doc.data();
+                    listEl.insertAdjacentHTML('beforeend', `
+                        <div class="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/20 flex justify-between items-center text-xs">
+                            <div>
+                                <strong class="text-rose-300 block mb-0.5"><i class="fa-solid fa-clock ml-1"></i> تاريخ الغياب: ${ab.date}</strong>
+                                <span class="text-slate-300">${ab.note}</span>
+                            </div>
+                        </div>
+                    `);
+                });
+            });
+        }
+    </script>
+</body>
+</html>
